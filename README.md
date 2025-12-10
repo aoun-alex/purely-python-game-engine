@@ -26,26 +26,37 @@ position = Vector2.zero()
 velocity = Vector2.from_angle(math.pi / 4, 5.0)
 ```
 
-**Interacts with:** Used by **Composite Pattern** (Transform) to create child vectors and by **Flyweight Pattern** (SpriteAtlas) to create UV coordinates.
+**Interacts with:** Used by **Composite Pattern** (Transform) to create child vectors and by **Template Method Pattern** (game loop) to initialize objects.
 
 ---
 
-### 2. Singleton Pattern
-**What it does:** Ensures only one instance of a class exists globally, providing a single access point.
+### 2. Builder Pattern
+**What it does:** Constructs complex objects step by step, allowing different configurations of the same object type.
 
 **Code Example:**
 ```python
-# engine/core/logger.py
-_logger_manager = LoggerManager()  # Single global instance
+# engine/audio/sound_generator.py
+class Sound:
+    def __init__(self, name: str):
+        self.name = name
+        self.samples: List[float] = []
+    
+    def generate_tone(self, frequency: float, duration: float, wave_type: str = 'sine'):
+        """Build sound with tone"""
+        # ... generate samples
+        return self
+    
+    def generate_sweep(self, start_freq: float, end_freq: float, duration: float):
+        """Build sound with frequency sweep"""
+        # ... generate samples
+        return self
 
-def get_logger(name: str = "Engine") -> Logger:
-    return _logger_manager.get_logger(name)
-
-# Everyone accesses the same LoggerManager
-logger = get_logger("MyGame")
+# Usage - build complex sounds step by step
+laser_sound = Sound("laser").generate_sweep(800, 200, 0.1)
+explosion_sound = Sound("explosion").generate_explosion(0.5)
 ```
 
-**Interacts with:** Used throughout the engine by **Facade Pattern** (GameEngine) and **Template Method Pattern** (System classes) for centralized logging.
+**Interacts with:** Used by **Facade Pattern** (SoundGenerator) to create complex audio effects, and enables **Template Method Pattern** games to define custom sounds.
 
 ---
 
@@ -91,7 +102,7 @@ class Transform:
         return parent_world + self.position.rotate(self._parent.world_rotation)
 ```
 
-**Interacts with:** Uses **Chain of Responsibility Pattern** to traverse parent hierarchy, and **Proxy Pattern** to lazily compute world positions.
+**Interacts with:** Uses **Prototype Pattern** to safely copy transform hierarchies, and works with **Facade Pattern** to provide simple transform access to users.
 
 ---
 
@@ -140,55 +151,9 @@ class TransformComponent(Component):  # ECS component interface
 
 ---
 
-### 7. Flyweight Pattern
-**What it does:** Shares common data between many objects to save memory.
-
-**Code Example:**
-```python
-# engine/graphics/sprite.py
-class SpriteAtlas:
-    def __init__(self, texture_size: Vector2):
-        self.sprites: Dict[str, Dict] = {}  # Shared data
-    
-    def add_sprite(self, name: str, position: Vector2, size: Vector2):
-        # Multiple sprites reference same atlas instead of duplicating textures
-        self.sprites[name] = {
-            'position': position,
-            'size': size,
-            'uv_start': Vector2(position.x / self.texture_size.x, ...),
-            'uv_end': Vector2(...)
-        }
-```
-
-**Interacts with:** Used by **Visitor Pattern** (Renderer) which reads shared sprite data when rendering multiple instances.
-
----
-
-### 8. Proxy Pattern
-**What it does:** Provides a placeholder that controls access to another object, often for lazy evaluation.
-
-**Code Example:**
-```python
-# engine/math/transform.py
-class Transform:
-    @property
-    def world_position(self) -> Vector2:
-        # Computed on-demand rather than stored
-        if not self._parent:
-            return self.position.copy()
-        # Only calculates when accessed
-        parent_world = self._parent.world_position
-        scaled_pos = Vector2(self.position.x * parent_scale.x, ...)
-        return parent_world + scaled_pos.rotate(parent_rotation)
-```
-
-**Interacts with:** Works with **Composite Pattern** by lazily computing transformations only when needed, improving performance.
-
----
-
 ## Behavioral Patterns
 
-### 9. Observer Pattern
+### 7. Observer Pattern
 **What it does:** Notifies multiple objects when an event occurs without tight coupling.
 
 **Code Example:**
@@ -206,11 +171,11 @@ class Window:
 self.window.set_key_press_callback(self.input_manager.on_key_press)
 ```
 
-**Interacts with:** Used by **Facade Pattern** (GameEngine) to connect subsystems, and enables **Command Pattern** by triggering registered callbacks.
+**Interacts with:** Used by **Facade Pattern** (GameEngine) to connect subsystems, and works with **Strategy Pattern** to enable configurable input handling.
 
 ---
 
-### 10. Strategy Pattern
+### 8. Strategy Pattern
 **What it does:** Allows swapping algorithms at runtime without changing client code.
 
 **Code Example:**
@@ -237,7 +202,7 @@ input_manager.set_active_profile("arrow_keys")  # or "default_keyboard"
 
 ---
 
-### 11. Template Method Pattern
+### 9. Template Method Pattern
 **What it does:** Defines the skeleton of an algorithm, letting subclasses override specific steps.
 
 **Code Example:**
@@ -264,135 +229,6 @@ class GameEngine:
             self.window.update()
 ```
 
-**Interacts with:** The core of **Facade Pattern** (GameEngine), coordinating **Observer Pattern** (input), **State Pattern** (scenes), and **Visitor Pattern** (rendering).
-
----
-
-### 12. Command Pattern
-**What it does:** Encapsulates requests as objects that can be stored, queued, and executed later.
-
-**Code Example:**
-```python
-# engine/input/input_manager.py
-class InputManager:
-    def __init__(self):
-        self.input_callbacks: Dict[str, Callable] = {}
-    
-    def register_input_callback(self, event_name: str, callback: Callable):
-        """Store command"""
-        self.input_callbacks[event_name] = callback
-    
-    def trigger_callback(self, event_name: str, *args, **kwargs):
-        """Execute command"""
-        if event_name in self.input_callbacks:
-            self.input_callbacks[event_name](*args, **kwargs)
-```
-
-**Interacts with:** Extends **Observer Pattern** by storing callbacks as commands, and works with **Strategy Pattern** to map inputs to actions.
-
----
-
-### 13. State Pattern
-**What it does:** Changes object behavior when its internal state changes.
-
-**Code Example:**
-```python
-# engine/core/engine.py
-class GameEngine:
-    def load_scene(self, scene: Scene):
-        self.next_scene = scene
-    
-    def run(self):
-        while self.is_running:
-            # State transition handling
-            if self.next_scene:
-                if self.current_scene:
-                    self.current_scene.cleanup()
-                self.current_scene = self.next_scene  # Change state
-                self.current_scene.initialize()
-                self.next_scene = None
-            
-            # Behavior depends on current state (scene)
-            self.current_scene.update(self.delta_time)
-```
-
-**Interacts with:** Managed by **Template Method Pattern** (game loop) and coordinates with **Visitor Pattern** to render the active scene.
-
----
-
-### 14. Iterator Pattern
-**What it does:** Provides a way to traverse collections without exposing internal structure.
-
-**Code Example:**
-```python
-# engine/ecs/entity.py
-class EntityManager:
-    def get_all_entities(self) -> List[Entity]:
-        return list(self.entities.values())
-    
-    def get_entities_with_components(self, *component_types: Type) -> List[Entity]:
-        result_ids = self.component_index.get(component_types[0], set()).copy()
-        for component_type in component_types[1:]:
-            result_ids &= self.component_index.get(component_type, set())
-        return [self.entities[eid] for eid in result_ids]
-
-# Usage
-for entity in entity_manager.get_all_entities():
-    # Process each entity
-```
-
-**Interacts with:** Provides collections to **Visitor Pattern** (systems that process entities) and **Template Method Pattern** (update loops).
-
----
-
-### 15. Visitor Pattern
-**What it does:** Separates operations from the objects they operate on, letting you add new operations without modifying objects.
-
-**Code Example:**
-```python
-# engine/scene/scene.py
-class Scene:
-    def render(self, renderer: Renderer):
-        """Renderer visits each object"""
-        sorted_objects = sorted(self.game_objects, key=lambda obj: obj.z_order)
-        
-        for obj in sorted_objects:
-            obj.render(renderer)  # Object accepts visitor
-
-# engine/scene/game_object.py
-class GameObject:
-    def render(self, renderer: 'Renderer'):
-        """Accept visitor"""
-        for component in self.components_list:
-            component.render(renderer)
-```
-
-**Interacts with:** The Renderer visits objects organized by **Iterator Pattern**, drawing sprites managed by **Flyweight Pattern** (SpriteAtlas).
-
----
-
-### 16. Chain of Responsibility Pattern
-**What it does:** Passes requests along a chain of handlers until one handles it.
-
-**Code Example:**
-```python
-# engine/math/transform.py
-class Transform:
-    @property
-    def world_position(self) -> Vector2:
-        if not self._parent:
-            return self.position.copy()  # End of chain
-        
-        # Pass request up the chain
-        parent_world = self._parent.world_position  # Recursive
-        parent_rotation = self._parent.world_rotation
-        parent_scale = self._parent.world_scale
-        
-        # Apply transformation and return
-        scaled_pos = Vector2(self.position.x * parent_scale.x, ...)
-        return parent_world + scaled_pos.rotate(parent_rotation)
-```
-
-**Interacts with:** Core mechanism of **Composite Pattern** for hierarchical transforms, used by **Proxy Pattern** for lazy evaluation.
+**Interacts with:** The core of **Facade Pattern** (GameEngine), coordinating **Observer Pattern** (input) and **Strategy Pattern** (configurable behaviors) in a fixed execution flow.
 
 ---
